@@ -200,7 +200,7 @@ class UserDaoSpec extends FlatSpec with DBModuleMock {
 ```
 
 
-### ApplicationLoaderと付き合う
+### ApplicationLoaderという存在
 
 #### ApplicationLoaderとは?
 (アプリケーション自体で構築できないようなコンテキストを与えられて)アプリケーションをインスタンス化する役割  
