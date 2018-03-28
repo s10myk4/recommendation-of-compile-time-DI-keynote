@@ -2,28 +2,19 @@
 # Compile time DIのススメ
 
 ## モチベーション
-そもそも凝ったDI手法なんて必要なくて、コンポーネントごとの依存関係を整理したいをシンプルに実現したい
+そもそも凝ったDI手法なんて必要なくて、コンポーネントの依存関係の整理したいをシンプルに実現したい
 
 ## 目的
-Compile time DIありだな くらいに思ってもらえたらいい
+特に何も考えずに Guice使ってた人に考える機会になれば嬉しい
+Compile time DIもありだなくらいに思ってもらえたらいい  
 
-## 前提の環境
-Play2.6系 scala2.12系
-
-scala2.10、11系
-Play2.4, 2.5でも利用可能
-
-## PlayFWにおけるDI
-Play 2.6は下記の2つのDI手法をサポートしている
-
-- JSR330に基づいたRuntime DI  
-Guiceはサポートしている1つ  
-
-- Compile time DI  
+## PlayのDI事情
+JSR330に基づいたRuntime DIと Compile time DIの両方をサポート
+デフォルトは Guice
+基本は constructor Injection
 
 ## DIの本来の目的
-TODO
-インターフェイスを使ってコードを書いておくと後で定義した実装に沿ってプログラムが動きます
+インターフェイスを使ってコードを書いておくと後で定義した実装を関連づけてプログラムが動く仕組み
 
 ## Runtime DIの利点 (Guice)
 - メリット  
@@ -34,6 +25,7 @@ TODO
   - アノテーションhell
   - 既存コードに依存が増える 
 
+
 ## Manual DIの利点
 - メリット  
 型安全　(コンパイル時に依存関係が満たされることを検証できる)  
@@ -43,30 +35,29 @@ runtimeでのreflectionが必要ないので、僅かかもしれないが起動
 DIコンテナを必要としない  
 
 - デメリット  
-コード量/ボイラープレート増える 
+コード量/ボイラープレート増える
+コンパイル時間が伸びる 
 
 ## Compile Time DIの候補
+
 ####- Thin Cake Pattern  
 標準の言語機能だけで実現できるが、  
 マニュアルで依存関係を定義するの辛い、ボイラープレートが増える
 
 ####- Reader Monad
-TODO Top of constructorsでDIする手法ではないので今回は話さない
+Top of constructorsでDIする手法ではないので今回は話さない
 
-####- macroを使ったautowiring tool
+####- macroを使ったauto wiring tool
 MacWire
 
-## 上記の問題を解決しつつ、コンポーネントごとの依存関係を簡潔に整理するようなDIがしたいのう
-### MacWireを使って依存関係を自動配線する
+## MacWireについて
 - MacWireとは？  
+Scala Macroを使ってインスタンスを作成するコードを生成してくれる  
+具体的な動作については下記参照  
+https://github.com/adamw/macwire#how-wiring-works
 
-TODO: ある程度どのようなscala APIを利用して依存関係を解決しているのかを説明したい
-- wireはどのように動いているのか
-http://di-in-scala.github.io/ (How wire works)
 
-scala.Macros を使ってIFと実装の関連付けを自動で解決してくれる
-
-簡単な例
+- 簡単な例
 
 ```
 import com.softwaremill.macwire._
@@ -87,14 +78,15 @@ wireしてるところがマクロで下記に展開
 lazy val userDao = new UserDao(db)
 ```
 
-### MacWireを使うとどれくらい既存のコードに依存を加えずにDIできるかをサンプルコードを使って示す
-  - アノテーション書かなくてもMacro?が依存関係を解決してくれるよ
-  - DILifeCycle何とかに依存してないから、DIを意識せずに単体テストがかける
-  - Compile timeなので穏やかな気持ちで開発できる(いざ動かしたらDIのRuntime Error)
+## lazy valでの宣言
+val で定義するとインスタンスが初期化される前に参照しようとするとnullになるので、  
+lazy val で定義するとオンデマンドで適切な初期化順序を自動で計算されるそう
 
 
+## DIの主要なケースでのmacwireの例
+一部 Guiceでの方法と比較しながら、DIでの主要なケースをmacwireでどんな感じで  
+実現できるか簡単な例を挙げる
 
-## Guice DIの主要な機能とmacWireの比較
 
 ### ある型に対して1つの実装を関連づける
 
@@ -103,15 +95,15 @@ lazy val userDao = new UserDao(db)
 ```
 bind(classOf[UserService]).to(classOf[UserServiceImpl])
 ```
-- macwire  
+- MacWire  
 
 ```
 lazy userSrvice: UserService = wire[UserServiceImpl]
 ```
 
 ### ある型に具体的なインスタンスを生成し、バインドする
-- Guice ->  Instance Bindings or Provides Methods or ProviderBindings
-https://qiita.com/saka1_p/items/8dfdeccce1f856214bae#providerbindings
+- Guice ->  Instance Bindings or Provides Methods or ProviderBindings  
+インスタンス生成の複雑度によって使い分けられる3つの方法が提供されている
 
 Instance Bindings
 
@@ -133,7 +125,7 @@ class ServiceModule extends AbstractModule {
 }
 ```
 
-- macwire -> Factory Method
+- MacWire -> Factory Method
 
 ```
 lazy val a = new A
@@ -152,8 +144,8 @@ trait Module {
 }
 ```
 
-### 型パラメータ使ったDI
-TODO かなり雰囲気
+### 型パラメータを使ったDI
+かなり雰囲気
 
 - Guice -> TypeLiteral
 
@@ -161,47 +153,26 @@ TODO かなり雰囲気
 bind(new TypeLiteral[UserRepository[JDBCCotext]]).to(classOf[UserRepositoryOnJDBC])
 ```
 
-- macwire
+- MacWire
 
 ```
 lazy val repository:UserRepository[JDBCCotext] = wire[UserRepositoryOnJDBC]
 ```
 
 ### Scope
-- Guice
+- Guice  
 デフォルトでは値を要求される度に、新しいインスタンス作成  
 `@Singleton`, `@SessionScoped`, `@RequestScoped`などで  
 インスタンスのライフタイムを変更できる
 
-- macwire  
+- MacWire  
 `lazy val`で宣言 -> シングルトン  
 `def` -> 要求される度に新しいインスタンスを作成して返す  
 `Scope trait`を使って requestやsessionの様な独自のscopeを定義できる
- 
- 
-TODO これ必要ないかも
-### IFに対して複数の実装がある場合
-
-1.  1つのモジュール内で、コンディショナルな条件によって実装を切り替える
-
-```
-trait DBModule {
-  ...
-
-  lazy val userDao: UserRepository = {
-    if (config.isTest) wire[UserRepositoryOnMemory]
-    else wire[UserRepositoryOnJDBC]
-  }
-
-  def config: Config
-}
-```
 
  
 ### Testing
-
-基本的にはコンストラクタDIなので、
-依存しているIFの実装はコンストラクタから簡単に切り替えられる
+基本的には constructor Injection なので、簡単にmockをさせる
 
 テスト時にテスト用のDBに切り替えたりできる
 
@@ -232,13 +203,12 @@ class UserDaoSpec extends FlatSpec with DBModuleMock {
 ### ApplicationLoaderと付き合う
 
 #### ApplicationLoaderとは?
-(与えられたコンテキストの)アプリケーションをインスタンス化する役割  
-アプリケーションが動くのに必要な全てのコンポーネントが、依存の関係を解決してインスタンス化される  
-PlayのDevモードでは、ApplicationLoaderは一度インスタンス化され、アプリケーションが再ロードされるたびに1回呼び出されます。  
-
-Guiceの場合は、GuiceApplicationBuilderっていうヘルパーが提供されているので特に意識しなくて済んだ
-
+(アプリケーション自体で構築できないようなコンテキストを与えられて)アプリケーションをインスタンス化する役割  
+PlayのDevモードでは、ApplicationLoaderは一度インスタンス化され、アプリケーションが再ロードされるたびに1回呼び出さる    
 ApplicationLoader内で コンポーネントの依存関係を解決できるようにしてあげる必要がある
+
+Guiceの場合は、GuiceApplicationBuilderっていうヘルパーが提供されていて  
+reference.confに標準で設定されてたので,特に意識しなくて済んだ
 
 ```
 class CustomApplicationLoader extends ApplicationLoader {
@@ -275,13 +245,11 @@ class CustomApplicationLoader extends ApplicationLoader {
 }
 ```
 
-
 #### Playでの開発をサポートするライブラリとの関係
-基本 JSR330に基づいたRuntime DIをサポートしているものが多い
+基本 Guiceをサポートしているものが多い
 
 - play-wsの例   
 WSClientのインスタンスを作るための Component を用意してくれている  
-もしなければHogeProviderにInjectされている依存を見て Componentを作ればいい
 
 ```
 /**
@@ -323,15 +291,16 @@ class CustomApplicationLoader extends ApplicationLoader {
 }
 ```
 
+
 - scalikejdbc.PlayInitializerの例
 
 PlayInitializerが必要とする `ApplicationLifecycle`と`Configuration `を解決してあげれば良い
+
 ```
 PlayInitializer @Inject() (
     lifecycle: ApplicationLifecycle,
     configuration: Configuration
-) { ...
-}
+) { ... }
 ```
 
 `BuiltInComponentsFromContext`というContextから必要なコンポーネントを取り出してくれるヘルパーがあるので簡単
@@ -364,31 +333,20 @@ class CustomApplicationLoader extends ApplicationLoader {
 
 ```
 
-### 懸念点
-コンパイルタイムにどれくらい影響があるか($お金で解決する)
-エクスペリメンタルな機能(macros)に依存している
+### デメリット
+コンパイル時間が伸びる  
+experimentalな機能(macro)に依存している
 
 
 #### その他の機能
-- Tagged type
 - using implicit parameters
 - Qualifiers(Tagged type)
 - Akka integration  
 
-
 ...etc
 
 ## まとめ
-
-TODO 大方やりたいことに対して十分な機能があること + メリット + 懸念点
-
-macwireでの compile time DIも懸念点はあるものの、
-Thin cake patternのデメリットであった、ボイラープレートを多く必要とせずに compile time DIを実現できるのは良い
-apiも充実しており、使い方もシンプルである
-runtimeでのreflectionが必要ないので、僅かかもしれないが起動時間が短くなる
-プレーンなScalaによって実現できる(no annotations)
-
-
-DIの手法にとらわれずに、シンプルにコンポーネントごとの依存がちいさくなる様な設計に注力しましょう。
-
+MacWireでの compile time DIも懸念点はあるものの、
+Thin cake patternのデメリットであった、実装やボイラープレートを多く必要とせずに compile time DIを実現できるのはとても良い  
+機能も充実しており、使い方もシンプル  
 
